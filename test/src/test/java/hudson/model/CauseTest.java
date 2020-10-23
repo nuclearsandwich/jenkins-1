@@ -27,6 +27,8 @@ package hudson.model;
 import hudson.XmlFile;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 
@@ -58,7 +60,9 @@ public class CauseTest {
         String buildXml = new XmlFile(Run.XSTREAM, new File(early.getRootDir(), "build.xml")).asString();
         assertTrue("keeps full history:\n" + buildXml, buildXml.contains("<upstreamBuild>1</upstreamBuild>"));
         buildXml = new XmlFile(Run.XSTREAM, new File(last.getRootDir(), "build.xml")).asString();
-        assertFalse("too big:\n" + buildXml, buildXml.contains("<upstreamBuild>1</upstreamBuild>"));
+    int maxUpstreamCauses = 10;
+        int count = buildXml.split(Pattern.quote("<hudson.model.Cause_-UpstreamCause")).length;
+        assertFalse(count + "is greater than " + maxUpstreamCauses + "; build.xml is too big:\n" + buildXml, count > maxUpstreamCauses);
     }
 
     @Issue("JENKINS-15747")
@@ -79,9 +83,24 @@ public class CauseTest {
             c.scheduleBuild2(0, cause);
             last = next3.get();
         }
-        int count = new XmlFile(Run.XSTREAM, new File(last.getRootDir(), "build.xml")).asString().split(Pattern.quote("<hudson.model.Cause_-UpstreamCause")).length;
-        assertFalse("too big at " + count, count > 100);
+    String buildXml = new XmlFile(Run.XSTREAM, new File(last.getRootDir(), "build.xml")).asString();
+    /* The number of upstream causes is one less than the length of the split. */
+        int count = buildXml.split(Pattern.quote("<hudson.model.Cause_-UpstreamCause")).length - 1;
+        assertFalse("Too many upstream causes: " + count + " in build.xml:\n" + buildXml, count > 25);
         //j.interactiveBreak();
+    }
+
+    @Test public void manyMultipleCauses() throws Exception {
+       List<FreeStyleProject> projects = new ArrayList<>();
+       List<Cause> causes = new ArrayList<>();
+       Run<?,?> last = null;
+       for (int i = 1; i <= 500; i++) {
+           FreeStyleProject p = j.createFreeStyleProject("mmuc" + i);
+           last = p.scheduleBuild2(0, new Cause.UserCause()).get();
+           causes.add(new Cause.UpstreamCause(last));
+       }
+       CauseAction ca = new CauseAction(causes);
+       assertTrue("Total causes aren't truncated: " + ca.getCauses().size(), ca.getCauses().size() <= 200);
     }
 
 

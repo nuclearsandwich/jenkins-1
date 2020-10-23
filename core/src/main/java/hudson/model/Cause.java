@@ -177,7 +177,9 @@ public abstract class Cause {
             upstreamUrl = up.getParent().getUrl();
             upstreamCauses = new ArrayList<>();
             Set<String> traversed = new HashSet<>();
+	    System.out.println("New BUUUUUUTTS");
             for (Cause c : up.getCauses()) {
+	    	System.out.println("cause iteration" + c.toString());
                 upstreamCauses.add(trim(c, MAX_DEPTH, traversed));
             }
         }
@@ -230,20 +232,23 @@ public abstract class Cause {
         }
 
         private @NonNull Cause trim(@NonNull Cause c, int depth, Set<String> traversed) {
+	    System.out.println("trim start " + depth + " traversed: " + traversed.size());
             if (!(c instanceof UpstreamCause)) {
                 return c;
             }
             UpstreamCause uc = (UpstreamCause) c;
             List<Cause> cs = new ArrayList<>();
             if (depth > 0) {
+		System.out.println("Adding nested causes for depth: " + depth);
                 if (traversed.add(uc.upstreamUrl + uc.upstreamBuild)) {
                     for (Cause c2 : uc.upstreamCauses) {
                         cs.add(trim(c2, depth - 1, traversed));
                     }
                 }
-            } else if (traversed.size() < MAX_LEAF) {
+            } else {
+		System.out.println("Dropping nested causes at depth: " + depth);
                 cs.add(new DeeplyNestedUpstreamCause());
-            }
+	    }
             return new UpstreamCause(uc.upstreamProject, uc.upstreamBuild, uc.upstreamUrl, cs);
         }
 

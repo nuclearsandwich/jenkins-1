@@ -40,8 +40,28 @@ import java.util.List;
 import java.util.Map;
 import jenkins.model.RunAction2;
 
+
 @ExportedBean
 public class CauseAction implements FoldableAction, RunAction2 {
+    static int MAX_ENTRIES = 200;
+    public class CauseBag<K,V> extends LinkedHashMap<K,V> {
+
+
+        public CauseBag() {
+            super();
+            this.truncated = false;
+        }
+
+        private boolean truncated;
+        /* Limit the maximum number of causes to avoid unbounded resource usage in large deployments. */
+        @Override protected boolean removeEldestEntry(Map.Entry<K,V> eldest) {
+            if (size() > MAX_ENTRIES) {
+                this.truncated = true;
+                return true;
+            }
+            return false;
+        }
+    }
     /**
      * @deprecated since 2009-02-28
      */
@@ -53,7 +73,7 @@ public class CauseAction implements FoldableAction, RunAction2 {
     @Deprecated
     private transient List<Cause> causes;
 
-    private Map<Cause,Integer> causeBag = new LinkedHashMap<>();
+    private Map<Cause,Integer> causeBag = new CauseBag<>();
 
     public CauseAction(Cause c) {
         this.causeBag.put(c, 1);
