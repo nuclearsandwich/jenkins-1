@@ -90,6 +90,23 @@ public class CauseTest {
         //j.interactiveBreak();
     }
 
+    @Test public void multipleLeafyCauses() throws Exception {
+        /* Create a project that is a sink for many which cannot run right away */
+        /* Trigger a buid of that project with from many. */
+        FreeStyleProject a = j.createFreeStyleProject("a");
+        FreeStyleProject b = j.createFreeStyleProject("b");
+	List<Cause> causes = new ArrayList<>();
+
+        for (int i = 0; i <= 50; i++) {
+            Future<? extends Run<?,?>> next = a.scheduleBuild2(0);
+	    causes.add(new Cause.UpstreamCause(next.get()));
+	}
+	Run<?,?> sink = a.scheduleBuild2(0, new Cause.UpstreamCause(a.scheduleBuild2(0, new CauseAction(causes)).get())).get();
+	String buildXml = new XmlFile(Run.XSTREAM, new File(sink.getRootDir(), "build.xml")).asString();
+        int count = buildXml.split(Pattern.quote("<hudson.model.Cause_-UpstreamCause")).length - 1;
+	assertFalse("leaf builds aren't being truncated, there are " + count + "in:\n" + buildXml, count > 50);
+    }
+
     @Test public void manyMultipleCauses() throws Exception {
        List<FreeStyleProject> projects = new ArrayList<>();
        List<Cause> causes = new ArrayList<>();
