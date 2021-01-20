@@ -26,6 +26,7 @@ package hudson.model;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import hudson.console.ModelHyperlinkNote;
 import hudson.diagnosis.OldDataMonitor;
@@ -177,9 +178,8 @@ public abstract class Cause {
             upstreamUrl = up.getParent().getUrl();
             upstreamCauses = new ArrayList<>();
             Set<String> traversed = new HashSet<>();
-	    System.out.println("New BUUUUUUTTS");
+            AtomicInteger leaf = new AtomicInteger(MAX_LEAF);
             for (Cause c : up.getCauses()) {
-	    	System.out.println("cause iteration" + c.toString());
                 upstreamCauses.add(trim(c, MAX_DEPTH, traversed));
             }
         }
@@ -231,26 +231,69 @@ public abstract class Cause {
             return Objects.hash(upstreamCauses, upstreamBuild, upstreamUrl, upstreamProject);
         }
 
+	/* Restored initial trim impl from #541 */
+	/*private @NonNull Cause trim(@NonNull Cause c, int depth, Set<String> traversed) {
+            if (!(c instanceof UpstreamCause)) {
+                return c;
+            }
+            UpstreamCause uc = (UpstreamCause) c;
+            List<Cause> cs = new ArrayList<Cause>();
+            if (depth > 0) {
+                for (Cause c2 : uc.upstreamCauses) {
+                    cs.add(trim(c2, depth - 1, traversed));
+                }
+            } else {
+                cs.add(new DeeplyNestedUpstreamCause());
+            }
+            return new UpstreamCause(uc.upstreamProject, uc.upstreamBuild, uc.upstreamUrl, cs);
+        }*/
+	/*
+	private @NonNull Cause trim(@NonNull Cause c, int depth, AtomicInteger leaf) {
+            if (!(c instanceof UpstreamCause)) {
+                return c;
+            }
+            UpstreamCause uc = (UpstreamCause) c;
+            List<Cause> cs = new ArrayList<Cause>();
+            if (depth > 0) {
+                for (Cause c2 : uc.upstreamCauses) {
+                    if (leaf.decrementAndGet() > 0) {
+                        cs.add(trim(c2, depth - 1, leaf));
+                    } else {
+                        cs.add(new DeeplyNestedUpstreamCause());
+                    }
+                }
+            } else {
+                cs.add(new DeeplyNestedUpstreamCause());
+            }
+            return new UpstreamCause(uc.upstreamProject, uc.upstreamBuild, uc.upstreamUrl, cs);
+        }
+	*/
+
         private @NonNull Cause trim(@NonNull Cause c, int depth, Set<String> traversed) {
-	    System.out.println("trim start " + depth + " traversed: " + traversed.size());
             if (!(c instanceof UpstreamCause)) {
                 return c;
             }
             UpstreamCause uc = (UpstreamCause) c;
             List<Cause> cs = new ArrayList<>();
             if (depth > 0) {
-		System.out.println("Adding nested causes for depth: " + depth);
                 if (traversed.add(uc.upstreamUrl + uc.upstreamBuild)) {
                     for (Cause c2 : uc.upstreamCauses) {
-                        cs.add(trim(c2, depth - 1, traversed));
+                        if (traversed.size() < MAX_LEAF) {
+                            cs.add(trim(c2, depth - 1, traversed));
+                        } else {
+                            System.out.println("Hit the max leaf count.");
+                            cs.add(new DeeplyNestedUpstreamCause());
+                        }
                     }
+                } else {
+                    System.out.println("This cause has already been traversed.");
                 }
             } else {
-		System.out.println("Dropping nested causes at depth: " + depth);
                 cs.add(new DeeplyNestedUpstreamCause());
-	    }
+            }
             return new UpstreamCause(uc.upstreamProject, uc.upstreamBuild, uc.upstreamUrl, cs);
         }
+
 
         /**
          * Returns true if this cause points to a build in the specified job.

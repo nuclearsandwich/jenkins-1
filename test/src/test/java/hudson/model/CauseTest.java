@@ -60,9 +60,12 @@ public class CauseTest {
         String buildXml = new XmlFile(Run.XSTREAM, new File(early.getRootDir(), "build.xml")).asString();
         assertTrue("keeps full history:\n" + buildXml, buildXml.contains("<upstreamBuild>1</upstreamBuild>"));
         buildXml = new XmlFile(Run.XSTREAM, new File(last.getRootDir(), "build.xml")).asString();
-    int maxUpstreamCauses = 10;
+        assertFalse("too big:\n" + buildXml, buildXml.contains("<upstreamBuild>1</upstreamBuild>"));
+        /*
+        int maxUpstreamCauses = 10;
         int count = buildXml.split(Pattern.quote("<hudson.model.Cause_-UpstreamCause")).length;
         assertFalse(count + "is greater than " + maxUpstreamCauses + "; build.xml is too big:\n" + buildXml, count > maxUpstreamCauses);
+        */
     }
 
     @Issue("JENKINS-15747")
@@ -84,6 +87,7 @@ public class CauseTest {
             last = next3.get();
         }
     String buildXml = new XmlFile(Run.XSTREAM, new File(last.getRootDir(), "build.xml")).asString();
+    System.out.println("build.xml:\n" + buildXml);
     /* The number of upstream causes is one less than the length of the split. */
         int count = buildXml.split(Pattern.quote("<hudson.model.Cause_-UpstreamCause")).length - 1;
         assertFalse("Too many upstream causes: " + count + " in build.xml:\n" + buildXml, count > 25);
@@ -95,10 +99,12 @@ public class CauseTest {
         /* Trigger a buid of that project with from many. */
         FreeStyleProject a = j.createFreeStyleProject("a");
         FreeStyleProject b = j.createFreeStyleProject("b");
+	Cause c = null;
+	Run<?,?> source = a.scheduleBuild2(0, c).get();
 	List<Cause> causes = new ArrayList<>();
 
         for (int i = 0; i <= 50; i++) {
-            Future<? extends Run<?,?>> next = a.scheduleBuild2(0);
+            Future<? extends Run<?,?>> next = a.scheduleBuild2(0, new Cause.UpstreamCause(source));
 	    causes.add(new Cause.UpstreamCause(next.get()));
 	}
 	Run<?,?> sink = a.scheduleBuild2(0, new Cause.UpstreamCause(a.scheduleBuild2(0, new CauseAction(causes)).get())).get();
